@@ -1,7 +1,3 @@
-# flight-planning
-App using JavaFx and Hibernate to plan to travel to Russian cities by the best price way.
-=======
-# Flight-planning
 # Flight-planning - Десктопное приложение на JavaFX 
 
 ## Описание
