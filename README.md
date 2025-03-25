@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # flight-planning
 App using JavaFx and Hibernate to plan to travel to Russian cities by the best price way.
 =======
@@ -19,5 +18,3 @@ Flight-planning – Приложение которое строит самый 
 - `Hibernate/` – конфигурационные файлы Hibernate, а также сущности и вспомогательные классы для работы с базой данных
 - `Graph/` – логика нахождения маршрута и его отрисовка
 - 'Main' - запуск и отрисовка приложения
-
->>>>>>> 1d33985 (app init)
