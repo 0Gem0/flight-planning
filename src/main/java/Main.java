@@ -22,111 +22,138 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class Main extends Application{
-    static Label labelOne = new Label();
-    static Label labelTwo = new Label("Нет такого пути");
-    private static Pane pane = new Pane();
+public class Main extends Application {
+
+    private static final Pane root = new Pane();
+    private static final Label resultLabel = new Label();
+    private static final Label errorLabel = new Label("Нет такого пути");
+
+    private static final TextField fromField = new TextField();
+    private static final TextField toField = new TextField();
+
+    private static final Canvas canvas = new Canvas(1920, 1080);
+    private static final GraphicsContext gc = canvas.getGraphicsContext2D();
+
     private static List<Flight> flights = new ArrayList<>();
+
     public static void main(String[] args) {
         launch(args);
+    }
 
-    }
     @Override
-    public void start(Stage primaryStage) {
-        primaryStage.setTitle("Drawing Operations Test");
-        Button btn = new Button("Пуск ");
-        Canvas canvas = new Canvas(1920, 1080);
-        canvas.setScaleX(1.0);
-        canvas.setScaleY(1.0);
-        GraphicsContext gc = canvas.getGraphicsContext2D();
-        TextField text = new TextField();
-        TextField text1 = new TextField();
-        Label label = new Label();
-        Label label1 = new Label();
-        Label label2 = new Label();
-        label.setText("Откуда: ");
-        label.setFont(Font.font("Verdana", FontWeight.MEDIUM, 20));
-        label1.setFont(Font.font("Verdana", FontWeight.MEDIUM, 20));
-        label1.setText("Куда: ");
-        label2.setText("Полёт");
-        label2.setFont(Font.font("Verdana", FontWeight.MEDIUM, 20));
-        label2.setLayoutX(300);
-        label2.setLayoutY(430);
-        label.setLayoutX(300);
-        label.setLayoutY(500);
-        label1.setLayoutX(300);
-        label1.setLayoutY(600);
-        text.setLayoutX(300);
-        text.setLayoutY(550);
-        text1.setLayoutX(300);
-        text1.setLayoutY(650);
-        btn.setLayoutX(300.0);
-        btn.setMinSize(50, 20);
-        btn.setLayoutY(800.0);
-        btn.setLineSpacing(10);
-        go(gc);
-        btn.setOnAction(event -> {
-                showDeikstr(text.getText(),text1.getText(),gc);
-        });
-        pane.getChildren().addAll(canvas, btn, text, label1, label, text1,label2);
-        primaryStage.setScene(new Scene(pane));
-        primaryStage.show();
+    public void start(Stage stage) {
+        stage.setTitle("Поиск маршрутов");
+
+        initUI();
+        loadAndDrawGraph();
+
+        Scene scene = new Scene(root);
+        stage.setScene(scene);
+        stage.show();
     }
-    public static void go(GraphicsContext gc){
-        Place fromPlace = null,toPlace = null;
-        Session session = HibernateUtil.getSessionFactory().openSession();
-        List<Place> places = new PlaceHelper(session).getPlaceList();
-        flights = new FlightHelper(session).getFlightList();
-        for (Flight flight : flights){
-            for (Place place : places){
-                if(Objects.equals(flight.getFrom(), place.getName())){
-                    fromPlace = place;
-                }
-                if(Objects.equals(flight.getTo(), place.getName())){
-                    toPlace = place;
+
+    private void initUI() {
+        fromField.setLayoutX(300);
+        fromField.setLayoutY(550);
+
+        toField.setLayoutX(300);
+        toField.setLayoutY(650);
+
+        Button startButton = new Button("Пуск");
+        startButton.setLayoutX(300);
+        startButton.setLayoutY(800);
+        startButton.setMinSize(80, 30);
+        startButton.setOnAction(e -> showShortestPath());
+
+        Label fromLabel = createLabel("Откуда:", 300, 500);
+        Label toLabel = createLabel("Куда:", 300, 600);
+        Label headerLabel = createLabel("Полёт", 300, 430);
+
+        root.getChildren().addAll(canvas, fromLabel, toLabel, headerLabel, fromField, toField, startButton);
+    }
+
+    private Label createLabel(String text, double x, double y) {
+        Label label = new Label(text);
+        label.setFont(Font.font("Verdana", FontWeight.MEDIUM, 20));
+        label.setLayoutX(x);
+        label.setLayoutY(y);
+        return label;
+    }
+
+    private void loadAndDrawGraph() {
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            List<Place> places = new PlaceHelper(session).getPlaceList();
+            flights = new FlightHelper(session).getFlightList();
+
+            for (Flight flight : flights) {
+                Place from = places.stream().filter(p -> Objects.equals(flight.getFrom(), p.getName())).findFirst().orElse(null);
+                Place to = places.stream().filter(p -> Objects.equals(flight.getTo(), p.getName())).findFirst().orElse(null);
+
+                if (from != null && to != null) {
+                    Graph.generateGraph(from, to, flight);
                 }
             }
-            Graph.generateGraph(fromPlace,toPlace,flight);
+
+            Graph.printGraph();
+            Graph.drawGraphWrap(Graph.graph, gc);
         }
-        Graph.printGraph();
-        Graph.drawGraphWrap(Graph.graph,gc);
-        session.close();
     }
-    public static void showDeikstr(String from, String to,GraphicsContext gc){
-        pane.getChildren().remove(labelOne);
-        pane.getChildren().remove(labelTwo);
+
+    private void showShortestPath() {
+        root.getChildren().remove(resultLabel);
+        root.getChildren().remove(errorLabel);
         gc.clearRect(650, 200, 1100, 1100);
-        Graph.drawGraphWrap(Graph.graph,gc);
-        ArrayList<String> order = new ArrayList<>();
+
+        Graph.drawGraphWrap(Graph.graph, gc);
+
+        String from = fromField.getText().trim();
+        String to = toField.getText().trim();
+        ArrayList<String> route;
+
         try {
-             order =  Graph.Deikstra(from,to);
-        }
-        catch (NullPointerException exception){
-            labelOne.setFont(Font.font("Verdana", FontWeight.MEDIUM, 20));
-            labelOne.setText("Нет пути");
-            labelOne.setLayoutX(300);
-            labelOne.setLayoutY(700);
-            pane.getChildren().add(labelOne);
+            route = Graph.Deikstra(from, to);
+        } catch (NullPointerException e) {
+            showError("Нет пути");
             return;
         }
-        gc.setStroke(Paint.valueOf("#ff0000"));
-        for (int i = 0; i <order.size()-1 ; i++) {
-            gc.strokeLine(Graph.graph.get(order.get(i)).getX(),Graph.graph.get(order.get(i)).getY(),Graph.graph.get(order.get(i+1)).getX(),Graph.graph.get(order.get(i+1)).getY());
-        }
 
-        //System.out.println(order);
-        int sum = 0;
-        for (int i = 0; i < order.size() - 1 ; i++) {
+        drawRoute(route);
+        showTotalCost(route);
+    }
+
+    private void drawRoute(List<String> route) {
+        gc.setStroke(Paint.valueOf("#ff0000"));
+
+        for (int i = 0; i < route.size() - 1; i++) {
+            String from = route.get(i);
+            String to = route.get(i + 1);
+            gc.strokeLine(Graph.graph.get(from).getX(), Graph.graph.get(from).getY(),
+                    Graph.graph.get(to).getX(), Graph.graph.get(to).getY());
+        }
+    }
+
+    private void showTotalCost(List<String> route) {
+        int total = 0;
+        for (int i = 0; i < route.size() - 1; i++) {
+            String from = route.get(i);
+            String to = route.get(i + 1);
             for (Flight flight : flights) {
-                sum += flight.returnPrice(order.get(i), order.get(i + 1));
+                total += flight.returnPrice(from, to);
             }
         }
-        labelTwo.setFont(Font.font("Verdana", FontWeight.MEDIUM, 20));
-        labelTwo.setText("Вся сумма: " + sum);
-        labelTwo.setLayoutX(300);
-        labelTwo.setLayoutY(700);
-        pane.getChildren().add(labelTwo);
+
+        resultLabel.setFont(Font.font("Verdana", FontWeight.MEDIUM, 20));
+        resultLabel.setText("Вся сумма: " + total);
+        resultLabel.setLayoutX(300);
+        resultLabel.setLayoutY(700);
+        root.getChildren().add(resultLabel);
     }
 
-
+    private void showError(String message) {
+        errorLabel.setText(message);
+        errorLabel.setFont(Font.font("Verdana", FontWeight.MEDIUM, 20));
+        errorLabel.setLayoutX(300);
+        errorLabel.setLayoutY(700);
+        root.getChildren().add(errorLabel);
     }
+}
